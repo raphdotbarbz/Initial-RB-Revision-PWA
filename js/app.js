@@ -95,20 +95,11 @@ const DEFAULT_SETTINGS = {
   shuffle: true,
   size: "10",
   answerMode: "instant",
-  goals: {
-    pe: 0,
-    energy: 0,
-    caia: 0,
-    gmat: 0
-  },
   dailyGoals: {
     pe: 0,
     energy: 0,
     caia: 0,
     gmat: 0
-  },
-  flashcardGoals: {
-    caia: 0
   },
   flashcardDailyGoals: {
     caia: 0
@@ -154,17 +145,9 @@ function normalizeSettings(parsed = {}) {
   return {
     ...structuredClone(DEFAULT_SETTINGS),
     ...parsed,
-    goals: {
-      ...structuredClone(DEFAULT_SETTINGS).goals,
-      ...(parsed.goals || {})
-    },
     dailyGoals: {
       ...structuredClone(DEFAULT_SETTINGS).dailyGoals,
       ...(parsed.dailyGoals || {})
-    },
-    flashcardGoals: {
-      ...structuredClone(DEFAULT_SETTINGS).flashcardGoals,
-      ...(parsed.flashcardGoals || {})
     },
     flashcardDailyGoals: {
       ...structuredClone(DEFAULT_SETTINGS).flashcardDailyGoals,
@@ -763,34 +746,6 @@ async function handleSubmit(event) {
     return;
   }
 
-  if (event.target.matches("[data-form='module-goal']")) {
-    const formData = new FormData(event.target);
-    const moduleKey = `${formData.get("module") || ""}`;
-    const goalValue = Number(formData.get("goal") || 0);
-    if (!moduleKey) {
-      return;
-    }
-    state.settings.goals[moduleKey] = Number.isFinite(goalValue) && goalValue > 0 ? Math.round(goalValue) : 0;
-    saveSettings();
-    showToast(state.settings.goals[moduleKey] ? "Goal saved." : "Goal cleared.");
-    render();
-    return;
-  }
-
-  if (event.target.matches("[data-form='flashcard-goal']")) {
-    const formData = new FormData(event.target);
-    const moduleKey = `${formData.get("module") || ""}`;
-    const goalValue = Number(formData.get("goal") || 0);
-    if (!moduleKey) {
-      return;
-    }
-    state.settings.flashcardGoals[moduleKey] = Number.isFinite(goalValue) && goalValue > 0 ? Math.round(goalValue) : 0;
-    saveSettings();
-    showToast(state.settings.flashcardGoals[moduleKey] ? "Flashcard goal saved." : "Flashcard goal cleared.");
-    render();
-    return;
-  }
-
   if (event.target.matches("[data-form='flashcard-daily-goal']")) {
     const formData = new FormData(event.target);
     const moduleKey = `${formData.get("module") || ""}`;
@@ -1359,17 +1314,6 @@ function renderScreen() {
   return `<main class="screen">${renderHomeScreen()}</main>`;
 }
 
-function getModuleGoal(moduleKey) {
-  return Number(state.settings.goals[moduleKey] || 0);
-}
-
-function getModuleGoalProgress(moduleKey) {
-  const goal = getModuleGoal(moduleKey);
-  const completed = getModuleAttemptCount(state.progress, moduleKey);
-  const ratio = goal > 0 ? Math.min(completed / goal, 1) : 0;
-  return { goal, completed, ratio };
-}
-
 function getModuleDailyGoal(moduleKey) {
   return Number(state.settings.dailyGoals?.[moduleKey] || 0);
 }
@@ -1385,22 +1329,6 @@ function getModuleDailyGoalProgress(moduleKey, dateKey = getTodayKey()) {
     ratio,
     remaining: goal > 0 ? Math.max(goal - completed, 0) : 0,
     studyDay
-  };
-}
-
-function getFlashcardGoal(moduleKey) {
-  return Number(state.settings.flashcardGoals?.[moduleKey] || 0);
-}
-
-function getFlashcardGoalProgress(moduleKey) {
-  const goal = getFlashcardGoal(moduleKey);
-  const completed = getFlashcardStats(state.progress, moduleKey).reviewCount;
-  const ratio = goal > 0 ? Math.min(completed / goal, 1) : 0;
-  return {
-    goal,
-    completed,
-    ratio,
-    remaining: goal > 0 ? Math.max(goal - completed, 0) : 0
   };
 }
 
@@ -1430,6 +1358,46 @@ function getOverallIncorrectCount() {
     .reduce((sum, moduleKey) => sum + getModuleIncorrectCount(state.progress, moduleKey), 0);
 }
 
+function renderPerformancePieCard() {
+  const correct = getOverallCorrectCount();
+  const incorrect = getOverallIncorrectCount();
+  const total = correct + incorrect;
+  const correctRatio = total ? correct / total : 0;
+  const angle = `${(correctRatio * 360).toFixed(2)}deg`;
+  const summary = total
+    ? `${percent(correctRatio)} accuracy across ${total} answered`
+    : "Answer a few questions and your split will appear here.";
+
+  return `
+    <article class="stat-card performance-card is-wide">
+      <div>
+        <p class="stat-label">Performance Split</p>
+        <p class="support-copy">${escapeHtml(summary)}</p>
+      </div>
+      <div class="performance-chart-shell">
+        <div class="performance-pie ${total ? "" : "is-empty"}" style="--pie-angle: ${angle}">
+          <div class="performance-pie-center">
+            <strong>${total || 0}</strong>
+            <span>answered</span>
+          </div>
+        </div>
+        <div class="performance-legend">
+          <div class="performance-legend-row">
+            <span class="performance-dot is-correct"></span>
+            <strong>${correct}</strong>
+            <span class="muted-copy">Correct</span>
+          </div>
+          <div class="performance-legend-row">
+            <span class="performance-dot is-incorrect"></span>
+            <strong>${incorrect}</strong>
+            <span class="muted-copy">Incorrect</span>
+          </div>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
 function renderHomeScreen() {
   const weakTopics = getWeakTopics(state.progress, 3);
   const sessions = getRecentSessions(state.progress, 5);
@@ -1450,9 +1418,8 @@ function renderHomeScreen() {
     </section>
     <section class="stat-grid">
       ${renderStatCard("Streak", `${state.progress.streak}d`, "Daily completion streak")}
-      ${renderStatCard("Correct", `${getOverallCorrectCount()}`, "Questions answered correctly")}
-      ${renderStatCard("Incorrect", `${getOverallIncorrectCount()}`, "Questions answered incorrectly")}
       ${renderStatCard("API Key", getApiKey() ? "Saved" : "Missing", navigator.onLine ? "Ready for AI actions" : "Offline mode active")}
+      ${renderPerformancePieCard()}
     </section>
     <section>
       <h3 class="section-heading">Modules</h3>
@@ -1504,21 +1471,13 @@ function renderModuleCard(moduleKey) {
   const accuracy = getModuleAccuracy(state.progress, moduleKey);
   const correct = getModuleCorrectCount(state.progress, moduleKey);
   const incorrect = getModuleIncorrectCount(state.progress, moduleKey);
-  const goal = getModuleGoalProgress(moduleKey);
   const dailyGoal = getModuleDailyGoalProgress(moduleKey);
-  const flashcardGoal = moduleKey === "caia" ? getFlashcardGoalProgress("caia") : null;
   const flashcardDailyGoal = moduleKey === "caia" ? getFlashcardDailyGoalProgress("caia") : null;
   const goalSummary = dailyGoal.goal
     ? `Today ${dailyGoal.completed}/${dailyGoal.goal}`
     : dailyGoal.completed
       ? `Today ${dailyGoal.completed} studied`
       : "No daily goal set";
-  const totalSummary = goal.goal
-    ? `Total ${goal.completed}/${goal.goal}`
-    : "No total goal set";
-  const flashcardGoalSummary = flashcardGoal?.goal
-    ? `Flashcards ${flashcardGoal.completed}/${flashcardGoal.goal}`
-    : "No flashcard goal set";
   const flashcardDailySummary = flashcardDailyGoal?.goal
     ? `Flashcards today ${flashcardDailyGoal.completed}/${flashcardDailyGoal.goal}`
     : flashcardDailyGoal?.completed
@@ -1536,8 +1495,6 @@ function renderModuleCard(moduleKey) {
       <div class="progress-bar"><span style="width: ${Math.max(accuracy * 100, 6)}%"></span></div>
       <p class="support-copy">${percent(accuracy)} accuracy · ${correct} correct · ${incorrect} incorrect</p>
       <p class="support-copy">${goalSummary}</p>
-      <p class="support-copy">${totalSummary}</p>
-      ${moduleKey === "caia" ? `<p class="support-copy">${flashcardGoalSummary}</p>` : ""}
       ${moduleKey === "caia" ? `<p class="support-copy">${flashcardDailySummary}</p>` : ""}
       <div class="module-actions">
         <button class="primary-button" data-action="start-session" data-module="${moduleKey}" data-size="10" data-source="card">Quick 10</button>
@@ -1593,9 +1550,7 @@ function renderModuleScreen(moduleKey) {
 }
 
 function renderModuleStatsPanel(moduleKey, flashcardStats = null, flashcardDeckStats = null) {
-  const goal = getModuleGoalProgress(moduleKey);
   const dailyGoal = getModuleDailyGoalProgress(moduleKey);
-  const flashcardGoal = moduleKey === "caia" ? getFlashcardGoalProgress("caia") : null;
   const flashcardDailyGoal = moduleKey === "caia" ? getFlashcardDailyGoalProgress("caia") : null;
   const correct = getModuleCorrectCount(state.progress, moduleKey);
   const incorrect = getModuleIncorrectCount(state.progress, moduleKey);
@@ -1608,18 +1563,14 @@ function renderModuleStatsPanel(moduleKey, flashcardStats = null, flashcardDeckS
       ${renderStatCard("Incorrect", `${incorrect}`, `${moduleConfig(moduleKey).title} incorrect`)}
       ${renderStatCard("Attempts", `${attempts}`, "Total answered")}
       ${renderStatCard("Daily Goal", dailyGoal.goal ? `${dailyGoal.completed}/${dailyGoal.goal}` : "None", dailyGoal.goal ? `${dailyGoal.remaining} left today` : "Set a daily target")}
-      ${renderStatCard("Total Goal", goal.goal ? `${goal.completed}/${goal.goal}` : "None", goal.goal ? "Question goal progress" : "Set a module goal")}
       ${moduleKey === "caia" ? renderStatCard("Flashcards", `${deckStats.total}`, `${flashcardStats.reviewCount} reviews · ${deckStats.uncertain} need review tags`) : ""}
-      ${moduleKey === "caia" ? renderStatCard("Flashcard Goal", flashcardGoal.goal ? `${flashcardGoal.completed}/${flashcardGoal.goal}` : "None", flashcardGoal.goal ? `${flashcardGoal.remaining} reviews left` : "Set a CAIA flashcard goal") : ""}
       ${moduleKey === "caia" ? renderStatCard("Flashcard Daily", flashcardDailyGoal.goal ? `${flashcardDailyGoal.completed}/${flashcardDailyGoal.goal}` : "None", flashcardDailyGoal.goal ? `${flashcardDailyGoal.remaining} reviews left today` : "Set a CAIA flashcard daily goal") : ""}
     </section>
   `;
 }
 
 function renderGoalForms(moduleKey) {
-  const goal = getModuleGoal(moduleKey);
   const dailyGoal = getModuleDailyGoal(moduleKey);
-  const flashcardGoal = moduleKey === "caia" ? getFlashcardGoal("caia") : 0;
   const flashcardDailyGoal = moduleKey === "caia" ? getFlashcardDailyGoal("caia") : 0;
   return `
     <div class="goal-form-grid">
@@ -1639,39 +1590,7 @@ function renderGoalForms(moduleKey) {
         >
         <button class="primary-button is-block" type="submit">${dailyGoal ? "Update daily goal" : "Save daily goal"}</button>
       </form>
-      <form class="settings-form goal-form-card" data-form="module-goal">
-        <input type="hidden" name="module" value="${moduleKey}">
-        <label for="${moduleKey}-goal">Total Question Goal for ${moduleConfig(moduleKey).title}</label>
-        <input
-          class="text-input"
-          id="${moduleKey}-goal"
-          name="goal"
-          type="number"
-          min="0"
-          step="1"
-          inputmode="numeric"
-          value="${goal || ""}"
-          placeholder="Example: 100"
-        >
-        <button class="secondary-button is-block" type="submit">${goal ? "Update total goal" : "Save total goal"}</button>
-      </form>
       ${moduleKey === "caia" ? `
-        <form class="settings-form goal-form-card" data-form="flashcard-goal">
-          <input type="hidden" name="module" value="caia">
-          <label for="caia-flashcard-goal">CAIA Flashcard Goal</label>
-          <input
-            class="text-input"
-            id="caia-flashcard-goal"
-            name="goal"
-            type="number"
-            min="0"
-            step="1"
-            inputmode="numeric"
-            value="${flashcardGoal || ""}"
-            placeholder="Example: 250"
-          >
-          <button class="secondary-button is-block" type="submit">${flashcardGoal ? "Update flashcard goal" : "Save flashcard goal"}</button>
-        </form>
         <form class="settings-form goal-form-card" data-form="flashcard-daily-goal">
           <input type="hidden" name="module" value="caia">
           <label for="caia-flashcard-daily-goal">CAIA Flashcard Daily Goal</label>
@@ -1868,7 +1787,6 @@ function renderQuizScreen() {
   const accuracy = getModuleAccuracy(state.progress, state.session.module);
   const flagged = isFlagged(state.progress, question.id);
   const availability = getAIAvailability();
-  const goal = getModuleGoalProgress(state.session.module);
   const dailyGoal = getModuleDailyGoalProgress(state.session.module);
   const trickVisible = Boolean(state.session.ui.showTrickFor[question.id]);
   const answerVisible = Boolean(state.session.ui.revealedAnswerFor[question.id]);
@@ -1889,7 +1807,6 @@ function renderQuizScreen() {
       <div class="question-meta">
         <span class="tag">Module accuracy ${percent(accuracy)}</span>
         ${dailyGoal.goal ? `<span class="tag">Today ${dailyGoal.completed}/${dailyGoal.goal}</span>` : ""}
-        ${goal.goal ? `<span class="tag">Total ${goal.completed}/${goal.goal}</span>` : ""}
         ${renderTimerPill(question)}
         ${flagged ? `<span class="tag">Flagged</span>` : ""}
         ${awaitingContinue ? `<span class="tag">Ready to continue</span>` : ""}
@@ -1946,7 +1863,6 @@ function renderFlashcardScreen() {
   const currentNumber = state.flashcardSession.currentIndex + 1;
   const total = state.flashcardSession.cards.length;
   const flashcardStats = getFlashcardStats(state.progress, "caia");
-  const flashcardGoal = getFlashcardGoalProgress("caia");
   const flashcardDailyGoal = getFlashcardDailyGoalProgress("caia");
   const curriculumModule = card.curriculum_module || card.topic || "CAIA";
 
@@ -1963,7 +1879,6 @@ function renderFlashcardScreen() {
       <div class="question-meta">
         <span class="tag">${flashcardStats.reviewCount} total reviews</span>
         <span class="tag">Avg ${flashcardStats.avgRating ? flashcardStats.avgRating.toFixed(1) : "0.0"}/5</span>
-        ${flashcardGoal.goal ? `<span class="tag">Goal ${flashcardGoal.completed}/${flashcardGoal.goal}</span>` : ""}
         ${flashcardDailyGoal.goal ? `<span class="tag">Today ${flashcardDailyGoal.completed}/${flashcardDailyGoal.goal}</span>` : ""}
         ${card.uncertain ? `<span class="tag">Needs tag review</span>` : ""}
       </div>
@@ -2008,7 +1923,6 @@ function renderFlashcardSummary() {
   const avgRating = reviews.length
     ? reviews.reduce((sum, entry) => sum + entry.rating, 0) / reviews.length
     : 0;
-  const flashcardGoal = getFlashcardGoalProgress("caia");
   const flashcardDailyGoal = getFlashcardDailyGoalProgress("caia");
 
   return `
@@ -2019,7 +1933,6 @@ function renderFlashcardSummary() {
       </div>
       <h2 class="summary-score">${avgRating.toFixed(1)}/5</h2>
       <p class="muted-copy">${correctLike} strong recall · ${incorrectLike} misses · ${state.progress.streak} day streak</p>
-      ${flashcardGoal.goal ? `<p class="muted-copy">Flashcard goal progress: ${flashcardGoal.completed}/${flashcardGoal.goal}</p>` : ""}
       ${flashcardDailyGoal.goal ? `<p class="muted-copy">Flashcards today: ${flashcardDailyGoal.completed}/${flashcardDailyGoal.goal}</p>` : ""}
       <div class="summary-actions">
         <button class="primary-button" data-action="open-flashcards" data-module="caia">Run another deck</button>

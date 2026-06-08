@@ -356,6 +356,10 @@ pre {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.stat-card.is-wide {
+  grid-column: span 2;
+}
+
 .module-card {
   position: relative;
   overflow: hidden;
@@ -435,6 +439,91 @@ pre {
   margin: 0.15rem 0 0;
   font-size: 0.84rem;
   color: var(--text-muted);
+}
+
+.performance-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.performance-chart-shell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.performance-pie {
+  --pie-angle: 0deg;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  position: relative;
+  flex: 0 0 auto;
+  background:
+    conic-gradient(var(--success) 0 var(--pie-angle), var(--danger) var(--pie-angle) 360deg);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.performance-pie.is-empty {
+  background: conic-gradient(rgba(255, 255, 255, 0.12) 0 360deg);
+}
+
+.performance-pie::after {
+  content: "";
+  position: absolute;
+  inset: 16px;
+  border-radius: 50%;
+  background: var(--bg-card-strong);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.performance-pie-center {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+
+.performance-pie-center strong {
+  font-family: var(--display-font);
+  font-size: 1.4rem;
+}
+
+.performance-pie-center span {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.performance-legend {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 160px;
+  flex: 1;
+}
+
+.performance-legend-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.performance-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.performance-dot.is-correct {
+  background: var(--success);
+}
+
+.performance-dot.is-incorrect {
+  background: var(--danger);
 }
 
 .question-card {
