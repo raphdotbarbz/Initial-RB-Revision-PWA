@@ -107,6 +107,9 @@ const DEFAULT_SETTINGS = {
     caia: 0,
     gmat: 0
   },
+  flashcardGoals: {
+    caia: 0
+  },
   filters: {
     pe: { topic: "all" },
     energy: { topic: "all" },
@@ -155,6 +158,10 @@ function normalizeSettings(parsed = {}) {
     dailyGoals: {
       ...structuredClone(DEFAULT_SETTINGS).dailyGoals,
       ...(parsed.dailyGoals || {})
+    },
+    flashcardGoals: {
+      ...structuredClone(DEFAULT_SETTINGS).flashcardGoals,
+      ...(parsed.flashcardGoals || {})
     },
     filters: {
       ...structuredClone(DEFAULT_SETTINGS).filters,
@@ -763,6 +770,20 @@ async function handleSubmit(event) {
     return;
   }
 
+  if (event.target.matches("[data-form='flashcard-goal']")) {
+    const formData = new FormData(event.target);
+    const moduleKey = `${formData.get("module") || ""}`;
+    const goalValue = Number(formData.get("goal") || 0);
+    if (!moduleKey) {
+      return;
+    }
+    state.settings.flashcardGoals[moduleKey] = Number.isFinite(goalValue) && goalValue > 0 ? Math.round(goalValue) : 0;
+    saveSettings();
+    showToast(state.settings.flashcardGoals[moduleKey] ? "Flashcard goal saved." : "Flashcard goal cleared.");
+    render();
+    return;
+  }
+
   if (event.target.matches("[data-form='module-daily-goal']")) {
     const formData = new FormData(event.target);
     const moduleKey = `${formData.get("module") || ""}`;
@@ -1346,6 +1367,22 @@ function getModuleDailyGoalProgress(moduleKey, dateKey = getTodayKey()) {
   };
 }
 
+function getFlashcardGoal(moduleKey) {
+  return Number(state.settings.flashcardGoals?.[moduleKey] || 0);
+}
+
+function getFlashcardGoalProgress(moduleKey) {
+  const goal = getFlashcardGoal(moduleKey);
+  const completed = getFlashcardStats(state.progress, moduleKey).reviewCount;
+  const ratio = goal > 0 ? Math.min(completed / goal, 1) : 0;
+  return {
+    goal,
+    completed,
+    ratio,
+    remaining: goal > 0 ? Math.max(goal - completed, 0) : 0
+  };
+}
+
 function getOverallCorrectCount() {
   return MODULE_KEYS
     .reduce((sum, moduleKey) => sum + getModuleCorrectCount(state.progress, moduleKey), 0);
@@ -1432,6 +1469,7 @@ function renderModuleCard(moduleKey) {
   const incorrect = getModuleIncorrectCount(state.progress, moduleKey);
   const goal = getModuleGoalProgress(moduleKey);
   const dailyGoal = getModuleDailyGoalProgress(moduleKey);
+  const flashcardGoal = moduleKey === "caia" ? getFlashcardGoalProgress("caia") : null;
   const goalSummary = dailyGoal.goal
     ? `Today ${dailyGoal.completed}/${dailyGoal.goal}`
     : dailyGoal.completed
@@ -1440,6 +1478,9 @@ function renderModuleCard(moduleKey) {
   const totalSummary = goal.goal
     ? `Total ${goal.completed}/${goal.goal}`
     : "No total goal set";
+  const flashcardGoalSummary = flashcardGoal?.goal
+    ? `Flashcards ${flashcardGoal.completed}/${flashcardGoal.goal}`
+    : "No flashcard goal set";
   return `
     <article class="module-card" style="--module-accent: ${config.accent}">
       <div class="module-meta">
@@ -1453,6 +1494,7 @@ function renderModuleCard(moduleKey) {
       <p class="support-copy">${percent(accuracy)} accuracy · ${correct} correct · ${incorrect} incorrect</p>
       <p class="support-copy">${goalSummary}</p>
       <p class="support-copy">${totalSummary}</p>
+      ${moduleKey === "caia" ? `<p class="support-copy">${flashcardGoalSummary}</p>` : ""}
       <div class="module-actions">
         <button class="primary-button" data-action="start-session" data-module="${moduleKey}" data-size="10" data-source="card">Quick 10</button>
         <button class="secondary-button" data-action="open-module" data-module="${moduleKey}">Open</button>
@@ -1509,6 +1551,7 @@ function renderModuleScreen(moduleKey) {
 function renderModuleStatsPanel(moduleKey, flashcardStats = null, flashcardDeckStats = null) {
   const goal = getModuleGoalProgress(moduleKey);
   const dailyGoal = getModuleDailyGoalProgress(moduleKey);
+  const flashcardGoal = moduleKey === "caia" ? getFlashcardGoalProgress("caia") : null;
   const correct = getModuleCorrectCount(state.progress, moduleKey);
   const incorrect = getModuleIncorrectCount(state.progress, moduleKey);
   const attempts = getModuleAttemptCount(state.progress, moduleKey);
@@ -1522,6 +1565,7 @@ function renderModuleStatsPanel(moduleKey, flashcardStats = null, flashcardDeckS
       ${renderStatCard("Daily Goal", dailyGoal.goal ? `${dailyGoal.completed}/${dailyGoal.goal}` : "None", dailyGoal.goal ? `${dailyGoal.remaining} left today` : "Set a daily target")}
       ${renderStatCard("Total Goal", goal.goal ? `${goal.completed}/${goal.goal}` : "None", goal.goal ? "Question goal progress" : "Set a module goal")}
       ${moduleKey === "caia" ? renderStatCard("Flashcards", `${deckStats.total}`, `${flashcardStats.reviewCount} reviews · ${deckStats.uncertain} need review tags`) : ""}
+      ${moduleKey === "caia" ? renderStatCard("Flashcard Goal", flashcardGoal.goal ? `${flashcardGoal.completed}/${flashcardGoal.goal}` : "None", flashcardGoal.goal ? `${flashcardGoal.remaining} reviews left` : "Set a CAIA flashcard goal") : ""}
     </section>
   `;
 }
@@ -1529,6 +1573,7 @@ function renderModuleStatsPanel(moduleKey, flashcardStats = null, flashcardDeckS
 function renderGoalForms(moduleKey) {
   const goal = getModuleGoal(moduleKey);
   const dailyGoal = getModuleDailyGoal(moduleKey);
+  const flashcardGoal = moduleKey === "caia" ? getFlashcardGoal("caia") : 0;
   return `
     <div class="goal-form-grid">
       <form class="settings-form goal-form-card" data-form="module-daily-goal">
@@ -1563,6 +1608,24 @@ function renderGoalForms(moduleKey) {
         >
         <button class="secondary-button is-block" type="submit">${goal ? "Update total goal" : "Save total goal"}</button>
       </form>
+      ${moduleKey === "caia" ? `
+        <form class="settings-form goal-form-card" data-form="flashcard-goal">
+          <input type="hidden" name="module" value="caia">
+          <label for="caia-flashcard-goal">CAIA Flashcard Goal</label>
+          <input
+            class="text-input"
+            id="caia-flashcard-goal"
+            name="goal"
+            type="number"
+            min="0"
+            step="1"
+            inputmode="numeric"
+            value="${flashcardGoal || ""}"
+            placeholder="Example: 250"
+          >
+          <button class="secondary-button is-block" type="submit">${flashcardGoal ? "Update flashcard goal" : "Save flashcard goal"}</button>
+        </form>
+      ` : ""}
     </div>
   `;
 }
@@ -1820,6 +1883,7 @@ function renderFlashcardScreen() {
   const currentNumber = state.flashcardSession.currentIndex + 1;
   const total = state.flashcardSession.cards.length;
   const flashcardStats = getFlashcardStats(state.progress, "caia");
+  const flashcardGoal = getFlashcardGoalProgress("caia");
   const curriculumModule = card.curriculum_module || card.topic || "CAIA";
 
   return `
@@ -1835,6 +1899,7 @@ function renderFlashcardScreen() {
       <div class="question-meta">
         <span class="tag">${flashcardStats.reviewCount} total reviews</span>
         <span class="tag">Avg ${flashcardStats.avgRating ? flashcardStats.avgRating.toFixed(1) : "0.0"}/5</span>
+        ${flashcardGoal.goal ? `<span class="tag">Goal ${flashcardGoal.completed}/${flashcardGoal.goal}</span>` : ""}
         ${card.uncertain ? `<span class="tag">Needs tag review</span>` : ""}
       </div>
       <h2 class="question-stem">${escapeHtml(card.front)}</h2>
@@ -1878,6 +1943,7 @@ function renderFlashcardSummary() {
   const avgRating = reviews.length
     ? reviews.reduce((sum, entry) => sum + entry.rating, 0) / reviews.length
     : 0;
+  const flashcardGoal = getFlashcardGoalProgress("caia");
 
   return `
     <section class="summary-card">
@@ -1887,6 +1953,7 @@ function renderFlashcardSummary() {
       </div>
       <h2 class="summary-score">${avgRating.toFixed(1)}/5</h2>
       <p class="muted-copy">${correctLike} strong recall · ${incorrectLike} misses · ${state.progress.streak} day streak</p>
+      ${flashcardGoal.goal ? `<p class="muted-copy">Flashcard goal progress: ${flashcardGoal.completed}/${flashcardGoal.goal}</p>` : ""}
       <div class="summary-actions">
         <button class="primary-button" data-action="open-flashcards" data-module="caia">Run another deck</button>
         <button class="secondary-button" data-action="open-module" data-module="caia">Back to CAIA</button>

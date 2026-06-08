@@ -1,4 +1,4 @@
-const CACHE_NAME = "rb-revision-v7";
+const CACHE_NAME = "rb-revision-v8";
 const PRECACHE_URLS = [
   "./",
   "./index.html",

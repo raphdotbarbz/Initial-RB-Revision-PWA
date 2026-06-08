@@ -29,9 +29,10 @@ For local testing:
 - Site URL: `http://127.0.0.1:4173`
 - Redirect URL: `http://127.0.0.1:4173`
 
-For Cloudflare Pages production, also add:
+For Cloudflare production, also add your live hosted URL. Depending on the Cloudflare deployment path, that may be either:
 
 - `https://<your-project>.pages.dev`
+- `https://<your-project>.<your-account>.workers.dev`
 - `https://<your-custom-domain>`
 
 ## 4. Add your public client config
@@ -128,7 +129,7 @@ Why this setup:
 - `build.sh` copies only the deployable assets into `dist`
 - this keeps docs, scripts, and local artifacts out of production
 
-After the first deploy, you will get a stable `*.pages.dev` URL.
+After the first deploy, you will get a stable Cloudflare URL. Depending on the project type, that may be a `*.pages.dev` URL or a `*.workers.dev` URL.
 
 ## 8. Update Supabase Auth URLs for production
 
@@ -136,7 +137,7 @@ In Supabase Auth URL configuration, add:
 
 - your local laptop URL: `http://127.0.0.1:4173`
 - your local phone test URL: `http://<your-mac-ip>:4173`
-- your Cloudflare Pages URL: `https://<your-project>.pages.dev`
+- your live Cloudflare URL: `https://<your-project>.pages.dev` or `https://<your-project>.<your-account>.workers.dev`
 - your final custom domain if you add one
 
 Important:
