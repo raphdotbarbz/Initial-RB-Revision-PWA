@@ -93,7 +93,7 @@ function createCalendarCursorState() {
 
 const DEFAULT_SETTINGS = {
   shuffle: true,
-  size: "10",
+  size: "5",
   answerMode: "instant",
   dailyGoals: {
     pe: 0,
@@ -535,7 +535,7 @@ function handleClick(event) {
 
   if (action === "start-session") {
     startSession(trigger.dataset.module, {
-      size: trigger.dataset.size || state.settings.size,
+      size: "5",
       source: trigger.dataset.source || "manual",
       topic: trigger.dataset.topic || null,
       flaggedOnly: trigger.dataset.flaggedOnly === "true"
@@ -560,13 +560,6 @@ function handleClick(event) {
 
   if (action === "toggle-answer-mode") {
     state.settings.answerMode = state.settings.answerMode === "instant" ? "session_end" : "instant";
-    saveSettings();
-    render();
-    return;
-  }
-
-  if (action === "set-size") {
-    state.settings.size = trigger.dataset.value;
     saveSettings();
     render();
     return;
@@ -1412,7 +1405,7 @@ function renderHomeScreen() {
       <h2>One study shell for CAIA, GMAT, Energy, and PE drills.</h2>
       <p class="muted-copy">Home screen install, local progress, and question banks that keep working even when the signal drops.</p>
       <div class="hero-actions">
-        <button class="primary-button" data-action="start-session" data-module="pe" data-size="10" data-source="home">Quick PE 10</button>
+        <button class="primary-button" data-action="start-session" data-module="pe" data-size="5" data-source="home">Quick PE 5</button>
         <button class="secondary-button" data-action="open-module" data-module="energy">Explore Energy</button>
       </div>
     </section>
@@ -1440,7 +1433,7 @@ function renderHomeScreen() {
                 data-action="start-session"
                 data-module="${entry.module}"
                 data-topic="${escapeHtml(entry.topic)}"
-                data-size="10"
+                data-size="5"
                 data-source="weak-topic"
               >Drill this topic</button>
             </div>
@@ -1497,7 +1490,7 @@ function renderModuleCard(moduleKey) {
       <p class="support-copy">${goalSummary}</p>
       ${moduleKey === "caia" ? `<p class="support-copy">${flashcardDailySummary}</p>` : ""}
       <div class="module-actions">
-        <button class="primary-button" data-action="start-session" data-module="${moduleKey}" data-size="10" data-source="card">Quick 10</button>
+        <button class="primary-button" data-action="start-session" data-module="${moduleKey}" data-size="5" data-source="card">Quick 5</button>
         <button class="secondary-button" data-action="open-module" data-module="${moduleKey}">Open</button>
       </div>
     </article>
@@ -1521,8 +1514,7 @@ function renderModuleScreen(moduleKey) {
       <h2>${escapeHtml(config.title)}</h2>
       <p class="muted-copy">${escapeHtml(config.description)}</p>
       <div class="hero-actions">
-        <button class="primary-button" data-action="start-session" data-module="${moduleKey}" data-size="${state.settings.size}" data-source="module">Start session</button>
-        <button class="secondary-button" data-action="start-session" data-module="${moduleKey}" data-size="all" data-source="module">Run full bank</button>
+        <button class="primary-button" data-action="start-session" data-module="${moduleKey}" data-size="5" data-source="module">Start 5-question session</button>
         ${moduleKey === "caia" ? `<button class="ghost-button" data-action="open-flashcards" data-module="caia">Flashcards</button>` : ""}
       </div>
     </section>
@@ -1535,11 +1527,7 @@ function renderModuleScreen(moduleKey) {
           ? `<button class="filter-chip ${state.settings.answerMode === "session_end" ? "is-active" : ""}" data-action="toggle-answer-mode">CAIA answers ${state.settings.answerMode === "instant" ? "instant" : "end of session"}</button>`
           : ""
         }
-        ${["10", "20", "all"].map((size) => `
-          <button class="filter-chip ${state.settings.size === size ? "is-active" : ""}" data-action="set-size" data-value="${size}">
-            ${size === "all" ? "Full bank" : `${size} q`}
-          </button>
-        `).join("")}
+        <span class="filter-chip is-active">5 q sessions only</span>
       </div>
       ${renderGoalForms(moduleKey)}
       ${renderModuleFilters(moduleKey, filters)}
@@ -2110,7 +2098,7 @@ function renderSummaryScreen() {
       <h2 class="summary-score">${summary.score}/${summary.total}${state.session.module === "pe" ? ` +${summary.speedBonus} speed` : ""}</h2>
       <p class="muted-copy">Finished in ${Math.round(summary.durationSec / 60)} minute(s). Streak is now ${state.progress.streak} day(s).</p>
       <div class="summary-actions">
-        <button class="primary-button" data-action="start-session" data-module="${state.session.module}" data-size="${state.settings.size}" data-source="restart">Run another session</button>
+        <button class="primary-button" data-action="start-session" data-module="${state.session.module}" data-size="5" data-source="restart">Run another session</button>
         <button class="secondary-button" data-action="open-module" data-module="${state.session.module}">Back to module</button>
       </div>
     </section>

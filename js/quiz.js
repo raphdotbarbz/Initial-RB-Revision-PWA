@@ -15,13 +15,9 @@ function shuffle(items) {
   return copy;
 }
 
-export function buildSessionQuestions(questions, { shuffleQuestions = true, size = "10" } = {}) {
+export function buildSessionQuestions(questions, { shuffleQuestions = true, size = "5" } = {}) {
   const ordered = shuffleQuestions ? shuffle(questions) : [...questions];
-  if (size === "all") {
-    return ordered;
-  }
-
-  const count = Number(size) || 10;
+  const count = Math.min(Number(size) || 5, 5);
   return ordered.slice(0, Math.min(count, ordered.length));
 }
 
