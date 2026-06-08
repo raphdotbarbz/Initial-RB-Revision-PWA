@@ -1,25 +1,25 @@
-const CACHE_NAME = "rb-revision-v9";
+const CACHE_NAME = "rb-revision-v10";
 const PRECACHE_URLS = [
-  "./",
-  "./index.html",
-  "./manifest.json",
-  "./assets/styles.css",
-  "./assets/fonts/dm-sans-latin.woff2",
-  "./assets/fonts/sora-latin.woff2",
-  "./assets/icons/icon-192.png",
-  "./assets/icons/icon-512.png",
-  "./data/caia.json",
-  "./data/caia_flashcards.json",
-  "./data/gmat.json",
-  "./data/energy.json",
-  "./data/pe.json",
-  "./js/app.js",
-  "./js/router.js",
-  "./js/quiz.js",
-  "./js/ai.js",
-  "./js/progress.js",
-  "./js/config.js",
-  "./js/supabase.js"
+  "/",
+  "/index.html",
+  "/manifest.json",
+  "/assets/styles.css",
+  "/assets/fonts/dm-sans-latin.woff2",
+  "/assets/fonts/sora-latin.woff2",
+  "/assets/icons/icon-192.png",
+  "/assets/icons/icon-512.png",
+  "/data/caia.json",
+  "/data/caia_flashcards.json",
+  "/data/gmat.json",
+  "/data/energy.json",
+  "/data/pe.json",
+  "/js/app.js",
+  "/js/router.js",
+  "/js/quiz.js",
+  "/js/ai.js",
+  "/js/progress.js",
+  "/js/config.js",
+  "/js/supabase.js"
 ];
 
 self.addEventListener("install", (event) => {
@@ -62,6 +62,31 @@ async function cacheFirst(request) {
   return response;
 }
 
+async function networkFirstNavigation(request) {
+  const cache = await caches.open(CACHE_NAME);
+
+  try {
+    const response = await fetch(request);
+    if (response && response.ok) {
+      cache.put("/index.html", response.clone());
+      cache.put("/", response.clone());
+    }
+    return response;
+  } catch {
+    const directMatch = await cache.match(request);
+    if (directMatch) {
+      return directMatch;
+    }
+
+    const cachedIndex = await cache.match("/index.html");
+    if (cachedIndex) {
+      return cachedIndex;
+    }
+
+    return cache.match("/");
+  }
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -76,9 +101,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (request.mode === "navigate") {
-    event.respondWith(
-      caches.match("./index.html").then((cached) => cached || fetch(request))
-    );
+    event.respondWith(networkFirstNavigation(request));
     return;
   }
 

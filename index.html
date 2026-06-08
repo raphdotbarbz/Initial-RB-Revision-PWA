@@ -10,13 +10,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="RB Revision">
-  <link rel="manifest" href="./manifest.json">
-  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png">
-  <link rel="apple-touch-icon" href="./assets/icons/icon-192.png">
-  <link rel="stylesheet" href="./assets/styles.css">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
+  <link rel="stylesheet" href="/assets/styles.css">
   <script>
     if ("serviceWorker" in navigator) {
-      window.rbServiceWorker = navigator.serviceWorker.register("./service-worker.js").catch((error) => {
+      window.rbServiceWorker = navigator.serviceWorker.register("/service-worker.js").catch((error) => {
         console.error("Service worker registration failed", error);
       });
     }
@@ -31,6 +31,6 @@
       <p>Loading your offline study shell...</p>
     </div>
   </div>
-  <script type="module" src="./js/app.js"></script>
+  <script type="module" src="/js/app.js"></script>
 </body>
 </html>
