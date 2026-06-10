@@ -104,6 +104,7 @@ const DEFAULT_SETTINGS = {
   flashcardDailyGoals: {
     caia: 0
   },
+  flashcardEdits: {},
   filters: {
     pe: { topic: "all" },
     energy: { topic: "all" },
@@ -120,6 +121,7 @@ const state = {
   route: { view: "home", module: null, query: {} },
   session: null,
   flashcardSession: null,
+  flashcardEditor: { open: false, cardId: "", draft: "" },
   aiPanel: { loading: false, text: "", error: "", title: "" },
   aiChat: createEmptyAIChat(),
   calendarCursorByModule: createCalendarCursorState(),
@@ -152,6 +154,10 @@ function normalizeSettings(parsed = {}) {
     flashcardDailyGoals: {
       ...structuredClone(DEFAULT_SETTINGS).flashcardDailyGoals,
       ...(parsed.flashcardDailyGoals || {})
+    },
+    flashcardEdits: {
+      ...structuredClone(DEFAULT_SETTINGS).flashcardEdits,
+      ...(parsed.flashcardEdits || {})
     },
     filters: {
       ...structuredClone(DEFAULT_SETTINGS).filters,
@@ -226,6 +232,20 @@ function resetAIChat({ keepOpen = false, questionId = "" } = {}) {
     open: keepOpen,
     contextId: questionId
   };
+}
+
+function closeFlashcardEditor() {
+  state.flashcardEditor = { open: false, cardId: "", draft: "" };
+}
+
+function getEditedFlashcardFront(card) {
+  const edited = `${state.settings.flashcardEdits?.[card?.id] || ""}`.trim();
+  return edited || card?.front || "";
+}
+
+function hasEditedFlashcardFront(card) {
+  const edited = `${state.settings.flashcardEdits?.[card?.id] || ""}`.trim();
+  return Boolean(card && edited && edited !== `${card.front || ""}`.trim());
 }
 
 function syncAIChatQuestionContext() {
@@ -710,6 +730,43 @@ function handleClick(event) {
     return;
   }
 
+  if (action === "toggle-flashcard-front-edit") {
+    const card = getCurrentFlashcard();
+    if (!card) {
+      return;
+    }
+    if (state.flashcardEditor.open && state.flashcardEditor.cardId === card.id) {
+      closeFlashcardEditor();
+    } else {
+      state.flashcardEditor = {
+        open: true,
+        cardId: card.id,
+        draft: getEditedFlashcardFront(card)
+      };
+    }
+    render();
+    return;
+  }
+
+  if (action === "cancel-flashcard-front-edit") {
+    closeFlashcardEditor();
+    render();
+    return;
+  }
+
+  if (action === "reset-flashcard-front-edit") {
+    const card = getCurrentFlashcard();
+    if (!card) {
+      return;
+    }
+    delete state.settings.flashcardEdits[card.id];
+    saveSettings();
+    closeFlashcardEditor();
+    showToast("Flashcard front reset.");
+    render();
+    return;
+  }
+
   if (action === "rate-flashcard") {
     gradeFlashcard(Number(trigger.dataset.rating));
     return;
@@ -749,6 +806,32 @@ async function handleSubmit(event) {
     state.settings.flashcardDailyGoals[moduleKey] = Number.isFinite(goalValue) && goalValue > 0 ? Math.round(goalValue) : 0;
     saveSettings();
     showToast(state.settings.flashcardDailyGoals[moduleKey] ? "Flashcard daily goal saved." : "Flashcard daily goal cleared.");
+    render();
+    return;
+  }
+
+  if (event.target.matches("[data-form='flashcard-front-edit']")) {
+    const card = getCurrentFlashcard();
+    if (!card) {
+      return;
+    }
+
+    const formData = new FormData(event.target);
+    const nextFront = `${formData.get("front") || ""}`.trim();
+    if (!nextFront) {
+      showToast("Front text cannot be empty.");
+      return;
+    }
+
+    if (nextFront === `${card.front || ""}`.trim()) {
+      delete state.settings.flashcardEdits[card.id];
+    } else {
+      state.settings.flashcardEdits[card.id] = nextFront;
+    }
+
+    saveSettings();
+    closeFlashcardEditor();
+    showToast("Flashcard front updated.");
     render();
     return;
   }
@@ -977,6 +1060,7 @@ function startFlashcardSession(moduleKey, options = {}) {
     reviews: []
   };
 
+  closeFlashcardEditor();
   resetAIChat();
   const flashcardHash = buildHash("flashcards", moduleKey);
   if (options.skipNavigate || window.location.hash === flashcardHash) {
@@ -994,6 +1078,7 @@ function finishFlashcardSession() {
   if (state.flashcardSession) {
     state.flashcardSession.finishedAt = Date.now();
   }
+  closeFlashcardEditor();
   render();
 }
 
@@ -1016,6 +1101,7 @@ function gradeFlashcard(rating) {
   });
   state.flashcardSession.currentIndex += 1;
   state.flashcardSession.revealed = false;
+  closeFlashcardEditor();
 
   if (state.flashcardSession.currentIndex >= state.flashcardSession.cards.length) {
     finishFlashcardSession();
@@ -1853,6 +1939,9 @@ function renderFlashcardScreen() {
   const flashcardStats = getFlashcardStats(state.progress, "caia");
   const flashcardDailyGoal = getFlashcardDailyGoalProgress("caia");
   const curriculumModule = card.curriculum_module || card.topic || "CAIA";
+  const front = getEditedFlashcardFront(card);
+  const editOpen = state.flashcardEditor.open && state.flashcardEditor.cardId === card.id;
+  const frontEdited = hasEditedFlashcardFront(card);
 
   return `
     <section class="question-card">
@@ -1868,9 +1957,24 @@ function renderFlashcardScreen() {
         <span class="tag">${flashcardStats.reviewCount} total reviews</span>
         <span class="tag">Avg ${flashcardStats.avgRating ? flashcardStats.avgRating.toFixed(1) : "0.0"}/5</span>
         ${flashcardDailyGoal.goal ? `<span class="tag">Today ${flashcardDailyGoal.completed}/${flashcardDailyGoal.goal}</span>` : ""}
+        ${frontEdited ? `<span class="tag">Front edited</span>` : ""}
         ${card.uncertain ? `<span class="tag">Needs tag review</span>` : ""}
       </div>
-      <h2 class="question-stem">${escapeHtml(card.front)}</h2>
+      <h2 class="question-stem">${escapeHtml(front)}</h2>
+      <div class="question-actions">
+        <button class="ghost-button" data-action="toggle-flashcard-front-edit">${editOpen ? "Hide edit" : "Edit front text"}</button>
+        ${frontEdited ? `<button class="ghost-button" data-action="reset-flashcard-front-edit">Reset front</button>` : ""}
+      </div>
+      ${editOpen ? `
+        <form class="settings-form" data-form="flashcard-front-edit">
+          <label for="flashcard-front-edit">Edit the front prompt</label>
+          <textarea class="text-input" id="flashcard-front-edit" name="front" rows="4" placeholder="Rewrite the front text so it is complete and readable.">${escapeHtml(state.flashcardEditor.draft)}</textarea>
+          <div class="question-actions">
+            <button class="primary-button" type="submit">Save front</button>
+            <button class="ghost-button" type="button" data-action="cancel-flashcard-front-edit">Cancel</button>
+          </div>
+        </form>
+      ` : ""}
       <div class="result-banner ${state.flashcardSession.revealed ? "is-correct" : ""}">
         ${state.flashcardSession.revealed
           ? `<strong>Back</strong><div>${escapeHtml(card.back)}</div>`
@@ -1934,7 +2038,7 @@ function renderFlashcardSummary() {
           <div class="review-item">
             <strong>Card ${index + 1} · ${escapeHtml(entry.card.curriculum_module || entry.card.topic || "CAIA")}</strong>
             <span class="muted-copy">Rating ${entry.rating}/5</span>
-            <p class="muted-copy">${escapeHtml(entry.card.front)}</p>
+            <p class="muted-copy">${escapeHtml(getEditedFlashcardFront(entry.card))}</p>
           </div>
         `).join("")}
       </div>
