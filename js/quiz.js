@@ -94,6 +94,20 @@ function evaluateText(question, rawValue) {
   };
 }
 
+function evaluateOpen(_question, rawValue) {
+  const submitted = `${rawValue || ""}`.trim().toLowerCase();
+  if (!submitted) {
+    return { valid: false, message: "Reveal the answer, then mark whether you got it or missed it." };
+  }
+
+  return {
+    valid: true,
+    correct: submitted === "correct",
+    submitted,
+    correctAnswer: null
+  };
+}
+
 function evaluateMcq(question, selectedIndex) {
   return {
     valid: true,
@@ -106,6 +120,10 @@ function evaluateMcq(question, selectedIndex) {
 export function evaluateAnswer(question, response) {
   if (question.type === "numeric") {
     return evaluateNumeric(question, response);
+  }
+
+  if (question.type === "open") {
+    return evaluateOpen(question, response);
   }
 
   if (question.type === "text") {

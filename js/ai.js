@@ -166,7 +166,8 @@ export async function generateSimilarQuestion(question) {
       "Generate one new question of the same type, topic, and difficulty.",
       "Return only valid JSON matching this schema:",
       "{ id, module, type, topic, subtopic, difficulty, level, stem, options, answer, explanation, formula_ref, tolerance_pct, trick }",
-      "For numeric questions set options to null. Keep the same module as the source question.",
+      "Allowed types are mcq, numeric, text, and open.",
+      "For numeric and open questions set options to null. For open questions, store the suggested answer in answer. Keep the same module as the source question.",
       buildQuestionContext(question)
     ].join("\n\n")
   });

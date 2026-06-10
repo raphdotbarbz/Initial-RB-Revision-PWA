@@ -590,6 +590,11 @@ function handleClick(event) {
     return;
   }
 
+  if (action === "grade-open-question") {
+    submitCurrentAnswer(trigger.dataset.correct === "true" ? "correct" : "incorrect");
+    return;
+  }
+
   if (action === "continue-question") {
     moveAfterAnswer();
     return;
@@ -2086,6 +2091,22 @@ function renderQuestionInput(question, locked = false) {
     `;
   }
 
+  if (question.type === "open") {
+    const answerVisible = Boolean(state.session?.ui.revealedAnswerFor[question.id]);
+    if (!answerVisible) {
+      return `
+        <button class="primary-button is-block" data-action="reveal-answer">Reveal Suggested Answer</button>
+      `;
+    }
+
+    return `
+      <div class="option-list">
+        <button class="option-button" data-action="grade-open-question" data-correct="true">I got it</button>
+        <button class="option-button" data-action="grade-open-question" data-correct="false">I missed it</button>
+      </div>
+    `;
+  }
+
   return `
     <div class="option-list">
       ${(question.options || []).map((option, index) => `
@@ -2098,6 +2119,16 @@ function renderQuestionInput(question, locked = false) {
 }
 
 function renderEvaluation(question, evaluation) {
+  if (question.type === "open") {
+    return `
+      <div class="result-banner ${evaluation.correct ? "is-correct" : "is-incorrect"}">
+        <strong>${evaluation.correct ? "Marked correct." : "Marked for review."}</strong>
+        <div>${formatCorrectAnswer(question)}</div>
+        <div>${escapeHtml(question.explanation)}</div>
+      </div>
+    `;
+  }
+
   if (evaluation.correct) {
     return `
       <div class="result-banner is-correct">
@@ -2120,6 +2151,9 @@ function renderEvaluation(question, evaluation) {
 function formatCorrectAnswer(question) {
   if (question.type === "numeric") {
     return `Correct answer: ${escapeHtml(question.answer)}${question.tolerance_pct ? ` (tolerance ±${question.tolerance_pct}%)` : ""}`;
+  }
+  if (question.type === "open") {
+    return `Suggested answer: ${escapeHtml(question.answer)}`;
   }
   if (question.type === "text") {
     return `Correct answer: ${escapeHtml(question.answer)}`;
