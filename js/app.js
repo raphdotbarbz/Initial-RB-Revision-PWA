@@ -116,6 +116,7 @@ const DEFAULT_SETTINGS = {
 const state = {
   banks: {},
   flashcardBanks: {},
+  referenceTables: [],
   progress: loadProgress(),
   settings: loadSettings(),
   route: { view: "home", module: null, query: {} },
@@ -133,7 +134,7 @@ const state = {
     lastSyncedAt: "",
     syncTimer: null
   },
-  sheet: { open: false, title: "", body: "" },
+  sheet: { open: false, title: "", body: "", html: "" },
   toast: "",
   celebration: "",
   adminMode: false,
@@ -427,15 +428,17 @@ async function loadBank(moduleKey) {
 
 async function boot() {
   try {
-    const [pe, energy, caia, gmat, caiaFlashcards] = await Promise.all([
+    const [pe, energy, caia, gmat, caiaFlashcards, mentalMathTables] = await Promise.all([
       loadBank("pe"),
       loadBank("energy"),
       loadBank("caia"),
       loadBank("gmat"),
-      loadBank("caia_flashcards")
+      loadBank("caia_flashcards"),
+      loadBank("mental_math_tables")
     ]);
     state.banks = { pe, energy, caia, gmat };
     state.flashcardBanks = { caia: caiaFlashcards };
+    state.referenceTables = mentalMathTables;
     bindEvents();
     startRouter((route) => {
       state.route = route;
@@ -615,14 +618,20 @@ function handleClick(event) {
     state.sheet = {
       open: true,
       title: `${question.topic} formula`,
-      body: question.formula_ref || "No formula reference stored for this question."
+      body: question.formula_ref || "No formula reference stored for this question.",
+      html: ""
     };
     render();
     return;
   }
 
+  if (action === "open-mental-math") {
+    openMentalMathTables(trigger.dataset.module);
+    return;
+  }
+
   if (action === "close-sheet") {
-    state.sheet = { open: false, title: "", body: "" };
+    state.sheet = { open: false, title: "", body: "", html: "" };
     render();
     return;
   }
@@ -903,6 +912,64 @@ function getFlashcards(moduleKey) {
   return Array.isArray(state.flashcardBanks[moduleKey]) ? state.flashcardBanks[moduleKey] : [];
 }
 
+function getMentalMathTables(moduleKey) {
+  return (state.referenceTables || []).filter((table) => table.subjects?.includes("all") || table.subjects?.includes(moduleKey));
+}
+
+function formatMentalMathSubject(subject) {
+  if (subject === "all") {
+    return "All";
+  }
+  return moduleConfig(subject).title;
+}
+
+function renderMentalMathTablesHtml(moduleKey, tables) {
+  return `
+    <div class="sheet-copy">
+      <p class="muted-copy">Reference tables labeled for ${escapeHtml(moduleConfig(moduleKey).title)}. Shared all-module tables are included too.</p>
+      <div class="mental-table-stack">
+        ${tables.map((table) => `
+          <article class="mental-table-card">
+            <div class="question-meta">
+              ${table.subjects.map((subject) => `<span class="pill">${escapeHtml(formatMentalMathSubject(subject))}</span>`).join("")}
+            </div>
+            <h4>${escapeHtml(table.title)}</h4>
+            ${table.description ? `<p class="muted-copy">${escapeHtml(table.description)}</p>` : ""}
+            <div class="mental-table-wrap">
+              <table class="mental-table">
+                <thead>
+                  <tr>${table.headers.map((cell) => `<th>${escapeHtml(cell)}</th>`).join("")}</tr>
+                </thead>
+                <tbody>
+                  ${table.rows.map((row) => `
+                    <tr>${table.headers.map((_, index) => `<td>${escapeHtml(row[index] || "")}</td>`).join("")}</tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </div>
+          </article>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function openMentalMathTables(moduleKey) {
+  const tables = getMentalMathTables(moduleKey);
+  if (!tables.length) {
+    showToast("No mental math tables are loaded for this module yet.");
+    return;
+  }
+
+  state.sheet = {
+    open: true,
+    title: `${moduleConfig(moduleKey).title} mental math tables`,
+    body: "",
+    html: renderMentalMathTablesHtml(moduleKey, tables)
+  };
+  render();
+}
+
 function getFlashcardDeckStats(moduleKey) {
   const cards = getFlashcards(moduleKey);
   return {
@@ -1035,7 +1102,7 @@ function startSession(moduleKey, options = {}) {
 
   state.aiPanel = { loading: false, text: "", error: "", title: "" };
   resetAIChat();
-  state.sheet = { open: false, title: "", body: "" };
+  state.sheet = { open: false, title: "", body: "", html: "" };
   const quizHash = buildHash("quiz", moduleKey, { source: options.source || "manual" });
   if (options.skipNavigate || window.location.hash === quizHash) {
     render();
@@ -1594,6 +1661,7 @@ function renderModuleScreen(moduleKey) {
   const filters = state.settings.filters[moduleKey];
   const flashcardStats = moduleKey === "caia" ? getFlashcardStats(state.progress, "caia") : null;
   const flashcardDeckStats = moduleKey === "caia" ? getFlashcardDeckStats("caia") : null;
+  const mentalMathTables = getMentalMathTables(moduleKey);
 
   return `
     <section class="hero-card">
@@ -1601,11 +1669,13 @@ function renderModuleScreen(moduleKey) {
         <span class="pill">${config.icon}</span>
         <span class="pill">${questions.length} questions live</span>
         ${flashcardDeckStats ? `<span class="pill">${flashcardDeckStats.total} flashcards live</span>` : ""}
+        ${mentalMathTables.length ? `<span class="pill">${mentalMathTables.length} mental math tables</span>` : ""}
       </div>
       <h2>${escapeHtml(config.title)}</h2>
       <p class="muted-copy">${escapeHtml(config.description)}</p>
       <div class="hero-actions">
         <button class="primary-button" data-action="start-session" data-module="${moduleKey}" data-size="5" data-source="module">Start 5-question session</button>
+        ${mentalMathTables.length ? `<button class="secondary-button" data-action="open-mental-math" data-module="${moduleKey}">Mental Math Tables</button>` : ""}
         ${moduleKey === "caia" ? `<button class="ghost-button" data-action="open-flashcards" data-module="caia">Flashcards</button>` : ""}
       </div>
     </section>
@@ -2362,7 +2432,7 @@ function renderFormulaSheet() {
       <button class="sheet-backdrop" data-action="close-sheet" aria-label="Close formula sheet"></button>
       <section class="sheet-panel">
         <h3>${escapeHtml(state.sheet.title)}</h3>
-        <p class="muted-copy">${escapeHtml(state.sheet.body)}</p>
+        ${state.sheet.html || `<div class="sheet-copy muted-copy">${multilineHtml(state.sheet.body)}</div>`}
         <button class="primary-button is-block" data-action="close-sheet">Close</button>
       </section>
     </div>

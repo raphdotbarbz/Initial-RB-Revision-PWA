@@ -1,4 +1,4 @@
-const CACHE_NAME = "rb-revision-v11";
+const CACHE_NAME = "rb-revision-v12";
 const PRECACHE_URLS = [
   "/",
   "/index.html",
@@ -13,6 +13,7 @@ const PRECACHE_URLS = [
   "/data/gmat.json",
   "/data/energy.json",
   "/data/pe.json",
+  "/data/mental_math_tables.json",
   "/js/app.js",
   "/js/router.js",
   "/js/quiz.js",
